@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WEBルーレット - シンプル＆無料の抽選ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            background: radial-gradient(circle at top, #1e293b 0%, #0f172a 100%);
+            color: #f8fafc;
+            min-height: 100vh;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        textarea {
+            user-select: text;
+        }
+
+        /* カスタムスクロールバー */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.5);
+        }
+
+        /* ルーレット盤のドロップシャドウと光彩 */
+        .wheel-container {
+            filter: drop-shadow(0 20px 35px rgba(0, 0, 0, 0.6));
+        }
+
+        /* スタートボタンのグラデーションとアニメーション */
+        .spin-btn {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+            box-shadow: 0 10px 25px -5px rgba(139, 92, 246, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+            transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s ease;
+        }
+        .spin-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px -5px rgba(236, 72, 153, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+        }
+        .spin-btn:active:not(:disabled) {
+            transform: translateY(1px) scale(0.99);
+        }
+        .spin-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            filter: grayscale(30%);
+        }
+
+        /* 結果ポップアップのアニメーション */
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.85) translateY(10px); }
+            70% { transform: scale(1.03) translateY(-2px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-pop {
+            animation: popIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* 紙吹雪キャンバス */
+        #confettiCanvas {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 60;
+        }
+    </style>
+</head>
+<body class="flex flex-col justify-between">
+
+    <!-- 紙吹雪エフェクト用キャンバス -->
+    <canvas id="confettiCanvas"></canvas>
+
+    <!-- ヘッダー -->
+    <header class="w-full border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <!-- トリプルクリックでシークレットメニューが開くタイトル -->
+                <h1 id="secretTitleTrigger" class="text-lg sm:text-xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-slate-300 cursor-default select-none" title="WEBルーレット">
+                    WEBルーレット
+                </h1>
+                <span class="hidden sm:inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700/70">
+                    ランダム抽選ツール
+                </span>
+            </div>
+
+            <!-- ツールボタン群（音量ON/OFFなど） -->
+            <div class="flex items-center gap-2">
+                <button id="soundToggleBtn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/80 text-slate-300 text-xs font-medium border border-slate-700/70 transition">
+                    <svg id="soundOnIcon" class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                    </svg>
+                    <svg id="soundOffIcon" class="w-4 h-4 text-slate-500 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path>
+                    </svg>
+                    <span id="soundLabel">効果音 ON</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-10 flex-grow flex items-center">
+        <div class="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            <!-- 左カラム：ルーレットキャンバス＆スタートボタン -->
+            <div class="lg:col-span-7 flex flex-col items-center justify-center bg-slate-900/50 border border-slate-800/90 rounded-3xl p-5 sm:p-8 shadow-2xl backdrop-blur-sm relative">
+                
+                <!-- 現在の当選表示バー -->
+                <div class="w-full flex items-center justify-between mb-4 px-3 py-2 rounded-2xl bg-slate-950/60 border border-slate-800/80">
+                    <span class="text-xs font-medium text-slate-400 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        現在の針の位置
+                    </span>
+                    <span id="currentPointerItem" class="text-sm font-bold text-slate-200 truncate max-w-[200px] sm:max-w-xs">
+                        ---
+                    </span>
+                </div>
+
+                <!-- ルーレット盤ラッパー -->
+                <div class="relative w-full max-w-[420px] aspect-square flex items-center justify-center my-2 wheel-container">
+                    <!-- 上部の針（ポインター） -->
+                    <div id="wheelPointer" class="absolute -top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none transition-transform duration-75" style="transform-origin: 50% 10px;">
+                        <svg width="44" height="52" viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <filter id="pointerShadow" x="-20%" y="-20%" width="140%" height="140%">
+                                <feDropShadow dx="0" dy="4" stdDeviation="3" flood-opacity="0.5"/>
+                            </filter>
+                            <path d="M22 48L6 14C3.5 8.5 7.5 2 13.5 2H30.5C36.5 2 40.5 8.5 38 14L22 48Z" fill="#F43F5E" stroke="#FFF" stroke-width="3" filter="url(#pointerShadow)"/>
+                            <circle cx="22" cy="14" r="5" fill="#FFF"/>
+                        </svg>
+                    </div>
+
+                    <!-- キャンバス本体 -->
+                    <canvas id="rouletteCanvas" width="800" height="800" class="w-full h-full rounded-full"></canvas>
+
+                    <!-- 中央の装飾キャップ -->
+                    <div class="absolute w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-900 border-4 border-slate-200 shadow-xl flex items-center justify-center pointer-events-none">
+                        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-indigo-500 to-pink-500 opacity-90"></div>
+                    </div>
+                </div>
+
+                <!-- スタートボタン（クリック位置による仕掛け対応） -->
+                <div class="w-full max-w-md mt-6">
+                    <button id="spinButton" class="spin-btn w-full py-4 px-6 rounded-2xl text-white font-extrabold text-lg sm:text-xl tracking-wider flex items-center justify-center gap-3 relative overflow-hidden">
+                        <svg class="w-6 h-6 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span class="pointer-events-none">スタート / SPIN</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 右カラム：項目入力・プリセット・履歴 -->
+            <div class="lg:col-span-5 flex flex-col gap-6">
+                
+                <!-- 項目編集カード -->
+                <div class="bg-slate-900/50 border border-slate-800/90 rounded-3xl p-5 sm:p-6 shadow-xl backdrop-blur-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-base font-bold text-white">項目リスト</h2>
+                            <span id="itemCountBadge" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                6件
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button id="shuffleItemsBtn" class="text-xs px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1" title="順番をシャッフル">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                                シャッフル
+                            </button>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-slate-400 mb-3">
+                        1行につき1つの項目を入力してください（最大30項目まで推奨）
+                    </p>
+
+                    <!-- 項目入力用テキストエリア -->
+                    <textarea id="itemsTextarea" rows="8" spellcheck="false"
+                        class="w-full rounded-2xl bg-slate-950/90 border border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-slate-100 text-sm p-4 leading-relaxed outline-none transition resize-y font-medium"
+                        placeholder="項目を改行区切りで入力..."></textarea>
+
+                    <!-- プリセットボタン -->
+                    <div class="mt-4">
+                        <span class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                            クイックプリセット
+                        </span>
+                        <div class="flex flex-wrap gap-1.5">
+                            <button data-preset="lunch" class="preset-btn text-xs px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/70 transition">
+                                🍽️ ランチ決め
+                            </button>
+                            <button data-preset="party" class="preset-btn text-xs px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/70 transition">
+                                🎉 罰ゲーム・余興
+                            </button>
+                            <button data-preset="role" class="preset-btn text-xs px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/70 transition">
+                                👥 幹事・当番決め
+                            </button>
+                            <button data-preset="drink" class="preset-btn text-xs px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/70 transition">
+                                🍻 おごりじゃんけん
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 抽選履歴カード -->
+                <div class="bg-slate-900/50 border border-slate-800/90 rounded-3xl p-5 sm:p-6 shadow-xl backdrop-blur-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                            抽選履歴
+                        </h3>
+                        <button id="clearHistoryBtn" class="text-[11px] text-slate-400 hover:text-slate-200 transition">
+                            クリア
+                        </button>
+                    </div>
+                    <div id="historyList" class="space-y-1.5 max-h-36 overflow-y-auto pr-1 text-xs text-slate-400">
+                        <p class="text-slate-500 py-2 text-center">まだ抽選履歴はありません</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- フッター（キーボード仕掛けの極小ステルスインジケーター付き） -->
+    <footer class="w-full border-t border-slate-800/50 py-4 px-6 text-center text-xs text-slate-500 flex items-center justify-center gap-2 relative">
+        <span>&copy; 2026 Web Roulette App</span>
+        <span>•</span>
+        <!-- 末尾の数字（2.4.0の最後の桁）がキーボード仕掛け設定時にさりげなく1〜9に変化するステルス表示 -->
+        <span class="font-mono text-[11px] text-slate-500/80">Ver 2.4.<span id="stealthVersionDigit">0</span></span>
+        <!-- 右下隅の1pxドット（仕掛け作動時のみわずかに不変化） -->
+        <span id="stealthCornerDot" class="fixed bottom-1 right-1 w-1 h-1 rounded-full bg-indigo-400 opacity-0 pointer-events-none transition-opacity"></span>
+    </footer>
+
+    <!-- 当選結果ポップアップモーダル -->
+    <div id="resultModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-md w-full p-6 sm:p-8 text-center shadow-2xl animate-pop relative overflow-hidden">
+            <div class="absolute -top-24 -left-24 w-48 h-48 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-pink-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 font-black text-2xl mb-4 shadow-lg shadow-amber-500/20">
+                🎯
+            </div>
+            <p class="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-1">RESULT / 抽選結果</p>
+            <div id="resultModalText" class="text-2xl sm:text-3xl font-black text-white my-4 py-4 px-3 rounded-2xl bg-slate-950/70 border border-slate-800 break-words">
+                ---
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-2.5 mt-6">
+                <button id="removeWinnerBtn" class="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold border border-slate-700 transition">
+                    この項目を除外して閉じる
+                </button>
+                <button id="closeResultBtn" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-xs sm:text-sm font-bold shadow-lg shadow-indigo-500/25 transition">
+                    OK（そのまま閉じる）
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 秘密の仕掛け解説＆コントロールモーダル（タイトルをトリプルクリックで表示） -->
+    <div id="secretModal" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl text-slate-200">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
+                <div class="flex items-center gap-2.5">
+                    <span class="px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-extrabold">
+                        SECRET HOST MENU
+                    </span>
+                    <h2 class="text-lg font-extrabold text-white">相手にバレない仕掛けマニュアル＆設定</h2>
+                </div>
+                <button id="closeSecretModalBtn" class="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="space-y-4 text-xs sm:text-sm leading-relaxed">
+                <!-- 現在の内部ターゲット状態プレビュー -->
+                <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <span class="text-xs text-slate-400 block">次回のスピン予定ステータス：</span>
+                        <span id="secretStatusPreview" class="text-sm font-bold text-emerald-400">完全ランダム（仕掛けなし）</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-slate-400">直接指定:</label>
+                        <select id="secretDirectSelect" class="bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3 py-1.5 outline-none">
+                            <option value="0">指定なし（ランダム）</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 仕掛けA -->
+                <div class="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/70">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <h3 class="font-bold text-indigo-300 flex items-center gap-2">
+                            <span>🅰️ 方法1：テキスト末尾の「半角スペース」仕掛け</span>
+                        </h3>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggleTrickA" checked class="sr-only peer">
+                            <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all relative peer-checked:bg-indigo-500"></div>
+                        </label>
+                    </div>
+                    <p class="text-slate-300 text-xs leading-relaxed">
+                        項目リストの中で、<strong>行の末尾に「半角スペース1個（<code class="text-amber-300">' '</code>）」</strong>を入れておくと、ルーレット盤の見た目には一切スペースを表示せず、その項目が<strong>100%当選</strong>します。<br>
+                        <span class="text-slate-400">※ さらに裏技として、<strong>半角スペース2個（<code class="text-amber-300">'  '</code>）</strong>を末尾につけた項目は「絶対に当たらない（安全圏）」になります（自分が罰ゲームを回避したい時に便利！）。</span>
+                    </p>
+                </div>
+
+                <!-- 仕掛けB -->
+                <div class="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/70">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <h3 class="font-bold text-purple-300 flex items-center gap-2">
+                            <span>🅱️ 方法2：キーボードの数字キー（1〜9 / 0）</span>
+                        </h3>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggleTrickB" checked class="sr-only peer">
+                            <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all relative peer-checked:bg-indigo-500"></div>
+                        </label>
+                    </div>
+                    <p class="text-slate-300 text-xs leading-relaxed">
+                        入力欄の外をクリックした状態で、キーボードの <strong><code class="text-amber-300">1</code>〜<code class="text-amber-300">9</code></strong> を押すと、上からその番号の項目が次回の当選にロックされます。<strong><code class="text-amber-300">0</code></strong> を押すと解除（完全ランダム）に戻ります。<br>
+                        <span class="text-slate-400">※ 確認方法：ページ最下部フッターの <code class="text-slate-200">Ver 2.4.0</code> の末尾の数字が、ロック中の番号（例：3番なら <code class="text-slate-200">Ver 2.4.3</code>）にさりげなく変わります。</span>
+                    </p>
+                </div>
+
+                <!-- 仕掛けC -->
+                <div class="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/70">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <h3 class="font-bold text-pink-300 flex items-center gap-2">
+                            <span>🅲 方法3：「スタート」ボタンの押す位置</span>
+                        </h3>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggleTrickC" checked class="sr-only peer">
+                            <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all relative peer-checked:bg-indigo-500"></div>
+                        </label>
+                    </div>
+                    <p class="text-slate-300 text-xs leading-relaxed">
+                        スマホでも使える仕掛けです。「スタート / SPIN」ボタンのクリック位置によって結果が変わります（方法1・2が未設定のときに有効）：
+                    </p>
+                    <div class="grid grid-cols-3 gap-2 mt-2 text-center text-[11px] font-bold">
+                        <div class="p-2 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-300">
+                            左端 25% を押す<br><span class="text-white">👉 1番目の項目</span>
+                        </div>
+                        <div class="p-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-300">
+                            中央 50% を押す<br><span class="text-emerald-400">👉 ガチ抽選</span>
+                        </div>
+                        <div class="p-2 rounded-xl bg-pink-500/20 border border-pink-500/40 text-pink-300">
+                            右端 25% を押す<br><span class="text-white">👉 最後の項目</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-[11px] text-slate-400 pt-1">
+                    💡 <strong>優先順位：</strong> 方法2（キーボードまたは直接指定） ＞ 方法1（末尾スペース） ＞ 方法3（ボタンの左右端クリック） ＞ 完全ランダム。<br>
+                    💡 <strong>自然な止まり方：</strong> 仕掛け作動時も毎回マスのど真ん中ではなく、マスの端ギリギリや少しズレた位置にランダム停止するため、何度回しても怪しまれません。
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button id="closeSecretModalFooterBtn" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm transition">
+                    閉じてルーレットに戻る
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * WEBルーレット（シークレット仕掛け搭載）
+         * 1ファイル完結・Canvas描画・Web Audio API効果音・自然な減速物理アニメーション
+         */
+
+        // 鮮やかなスライス用カラーパレット
+        const SLICE_COLORS = [
+            '#6366F1', // Indigo
+            '#EC4899', // Pink
+            '#10B981', // Emerald
+            '#F59E0B', // Amber
+            '#3B82F6', // Blue
+            '#8B5CF6', // Violet
+            '#EF4444', // Red
+            '#14B8A6', // Teal
+            '#F97316', // Orange
+            '#06B6D4'  // Cyan
+        ];
+
+        // プリセットデータ
+        const PRESETS = {
+            lunch: [
+                '焼肉・ステーキ',
+                '寿司・海鮮丼',
+                '濃厚ラーメン',
+                '本格カレー',
+                'イタリアン・パスタ',
+                'カフェ・サンドイッチ'
+            ],
+            party: [
+                'モノマネ全力披露',
+                '恥ずかしい秘密を暴露',
+                '全員にジュースおごり',
+                '変顔で記念撮影',
+                '好きな人を発表',
+                '1回休み（セーフ！）'
+            ],
+            role: [
+                '佐藤さん',
+                '鈴木さん',
+                '高橋さん',
+                '田中さん',
+                '伊藤さん',
+                '渡辺さん'
+            ],
+            drink: [
+                '全額おごり！',
+                '1,000円分負担',
+                'デザートおごり',
+                'おつまみ1品追加',
+                '次回幹事確定',
+                '完全免除（タダ！）'
+            ]
+        };
+
+        // DOM要素の取得
+        const canvas = document.getElementById('rouletteCanvas');
+        const ctx = canvas.getContext('2d');
+        const wheelPointer = document.getElementById('wheelPointer');
+        const spinButton = document.getElementById('spinButton');
+        const itemsTextarea = document.getElementById('itemsTextarea');
+        const itemCountBadge = document.getElementById('itemCountBadge');
+        const currentPointerItem = document.getElementById('currentPointerItem');
+        const shuffleItemsBtn = document.getElementById('shuffleItemsBtn');
+        const historyList = document.getElementById('historyList');
+        const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+
+        // モーダル・ステルス表示系DOM
+        const resultModal = document.getElementById('resultModal');
+        const resultModalText = document.getElementById('resultModalText');
+        const closeResultBtn = document.getElementById('closeResultBtn');
+        const removeWinnerBtn = document.getElementById('removeWinnerBtn');
+        const secretTitleTrigger = document.getElementById('secretTitleTrigger');
+        const secretModal = document.getElementById('secretModal');
+        const closeSecretModalBtn = document.getElementById('closeSecretModalBtn');
+        const closeSecretModalFooterBtn = document.getElementById('closeSecretModalFooterBtn');
+        const secretStatusPreview = document.getElementById('secretStatusPreview');
+        const secretDirectSelect = document.getElementById('secretDirectSelect');
+        const stealthVersionDigit = document.getElementById('stealthVersionDigit');
+        const stealthCornerDot = document.getElementById('stealthCornerDot');
+
+        // 仕掛けON/OFFトグル
+        const toggleTrickA = document.getElementById('toggleTrickA');
+        const toggleTrickB = document.getElementById('toggleTrickB');
+        const toggleTrickC = document.getElementById('toggleTrickC');
+
+        // 音声関連
+        const soundToggleBtn = document.getElementById('soundToggleBtn');
+        const soundOnIcon = document.getElementById('soundOnIcon');
+        const soundOffIcon = document.getElementById('soundOffIcon');
+        const soundLabel = document.getElementById('soundLabel');
+        let soundEnabled = true;
+        let audioCtx = null;
+
+        // ルーレットの状態変数
+        let items = []; // { rawText, displayText, forceWin, forceLose }
+        let currentAngle = 0; // ラジアン（0は3時方向、針は12時方向 = -Math.PI / 2）
+        let isSpinning = false;
+        let lastWinnerIndex = -1;
+        let spinHistory = [];
+
+        // 仕掛け（Rigging）ステート
+        let keyboardTargetNumber = 0; // 0 = ランダム, 1〜9 = その番号(1始まり)を強制当選
+        let titleClickCount = 0;
+        let titleClickTimer = null;
+
+        /**
+         * Web Audio API によるシンセ効果音（外部音声ファイル不要）
+         */
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) {
+                    audioCtx = new AudioContextClass();
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // カチッというピン通過音
+        function playTickSound() {
+            if (!soundEnabled || !audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(680, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(220, audioCtx.currentTime + 0.035);
+
+                gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.035);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.04);
+            } catch (e) {
+                // 音声再生エラーは無視
+            }
+        }
+
+        // 当選時のファンファーレ音
+        function playWinSound() {
+            if (!soundEnabled || !audioCtx) return;
+            try {
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                notes.forEach((freq, idx) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    const startTime = audioCtx.currentTime + idx * 0.09;
+                    const duration = idx === notes.length - 1 ? 0.45 : 0.18;
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, startTime);
+
+                    gain.gain.setValueAtTime(0.22, startTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(startTime);
+                    osc.stop(startTime + duration);
+                });
+            } catch (e) {
+                // 音声再生エラーは無視
+            }
+        }
+
+        /**
+         * テキストエリアから項目を解析（末尾の半角スペースによる仕掛けを検出）
+         */
+        function parseItemsFromTextarea() {
+            const rawLines = itemsTextarea.value.split('\n');
+            const parsed = [];
+
+            for (let line of rawLines) {
+                // 空白のみの行はスキップ
+                if (line.trim().length === 0) continue;
+
+                // 仕掛けAの判定：
+                // 末尾が半角スペース2個 ('  ') の場合は「絶対外す(forceLose)」
+                // 末尾が半角スペース1個 (' ') の場合は「絶対当てる(forceWin)」
+                const endsWithTwoSpaces = line.endsWith('  ');
+                const endsWithOneSpace = !endsWithTwoSpaces && line.endsWith(' ');
+
+                parsed.push({
+                    rawText: line,
+                    displayText: line.trim(), // 画面上には前後の空白を完全に消して表示
+                    forceWin: endsWithOneSpace,
+                    forceLose: endsWithTwoSpaces
+                });
+            }
+
+            // 項目が0件の場合はダミーを入れる
+            if (parsed.length === 0) {
+                parsed.push(
+                    { rawText: '項目1', displayText: '項目1', forceWin: false, forceLose: false },
+                    { rawText: '項目2', displayText: '項目2', forceWin: false, forceLose: false }
+                );
+            }
+
+            items = parsed;
+            itemCountBadge.textContent = `${items.length}件`;
+            updateSecretSelectOptions();
+            updateSecretStatusPreview();
+            drawWheel();
+            updatePointerIndicator();
+        }
+
+        /**
+         * 現在の角度において12時方向の針（-Math.PI / 2）が指している項目のインデックスを取得
+         */
+        function getActiveSliceIndex(angle) {
+            const count = items.length;
+            if (count === 0) return 0;
+            const sliceAngle = (Math.PI * 2) / count;
+            // 針は12時方向（3*Math.PI/2 または -Math.PI/2）
+            const pointerAngle = (Math.PI * 1.5 - (angle % (Math.PI * 2)) + Math.PI * 4) % (Math.PI * 2);
+            return Math.floor(pointerAngle / sliceAngle) % count;
+        }
+
+        /**
+         * 上部バーの「現在の針の位置」テキスト更新
+         */
+        function updatePointerIndicator() {
+            const idx = getActiveSliceIndex(currentAngle);
+            if (items[idx]) {
+                currentPointerItem.textContent = items[idx].displayText;
+            }
+        }
+
+        /**
+         * ルーレット盤のCanvas描画
+         */
+        function drawWheel() {
+            const width = canvas.width;
+            const height = canvas.height;
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const radius = Math.min(centerX, centerY) - 24;
+
+            ctx.clearRect(0, 0, width, height);
+
+            const count = items.length;
+            const sliceAngle = (Math.PI * 2) / count;
+
+            // 外枠のメタリックリム
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius + 14, 0, Math.PI * 2);
+            ctx.fillStyle = '#1e293b';
+            ctx.fill();
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = '#475569';
+            ctx.stroke();
+            ctx.restore();
+
+            // 各スライスの描画
+            for (let i = 0; i < count; i++) {
+                const startAngle = currentAngle + i * sliceAngle;
+                const endAngle = startAngle + sliceAngle;
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+                ctx.closePath();
+
+                // 隣り合う色が被らないように配色
+                let colorIndex = i % SLICE_COLORS.length;
+                if (i === count - 1 && colorIndex === 0 && count > 1) {
+                    colorIndex = 1;
+                }
+                ctx.fillStyle = SLICE_COLORS[colorIndex];
+                ctx.fill();
+
+                // スライス境界線
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = 'rgba(15, 23, 42, 0.75)';
+                ctx.stroke();
+
+                // テキストの描画
+                ctx.translate(centerX, centerY);
+                ctx.rotate(startAngle + sliceAngle / 2);
+
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#ffffff';
+
+                // 項目数に応じてフォントサイズを自動調整
+                const fontSize = count > 16 ? 20 : count > 10 ? 24 : 28;
+                ctx.font = `800 ${fontSize}px "Inter", "Noto Sans JP", sans-serif`;
+
+                // 文字の視認性を高めるシャドウ
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetX = 1;
+                ctx.shadowOffsetY = 1;
+
+                // 長すぎる文字は省略
+                const rawLabel = items[i].displayText;
+                const maxChars = count > 14 ? 9 : 12;
+                const label = rawLabel.length > maxChars ? rawLabel.slice(0, maxChars - 1) + '…' : rawLabel;
+
+                ctx.fillText(label, radius - 34, 0);
+                ctx.restore();
+            }
+
+            // 外周のピン（ペグ）の描画
+            for (let i = 0; i < count; i++) {
+                const pegAngle = currentAngle + i * sliceAngle;
+                const pegX = centerX + Math.cos(pegAngle) * (radius + 2);
+                const pegY = centerY + Math.sin(pegAngle) * (radius + 2);
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(pegX, pegY, 6, 0, Math.PI * 2);
+                ctx.fillStyle = '#f8fafc';
+                ctx.shadowColor = 'rgba(0,0,0,0.6)';
+                ctx.shadowBlur = 4;
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#0f172a';
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        /**
+         * 仕掛けロジック：どのインデックスを当選させるか決定する
+         * @param {string} clickZone - 'left' | 'center' | 'right'
+         * @returns {number} 当選させる項目のインデックス (0 〜 items.length - 1)
+         */
+        function determineTargetIndex(clickZone) {
+            const count = items.length;
+            if (count <= 1) return 0;
+
+            // 1. 方法B（キーボード数字キー 1〜9 またはシークレットメニューでの直接指定）
+            if (toggleTrickB.checked && keyboardTargetNumber >= 1 && keyboardTargetNumber <= count) {
+                return keyboardTargetNumber - 1;
+            }
+
+            // 2. 方法A（テキスト末尾の半角スペース1個＝強制当選）
+            if (toggleTrickA.checked) {
+                const forcedWinIndices = [];
+                items.forEach((item, idx) => {
+                    if (item.forceWin) forcedWinIndices.push(idx);
+                });
+                if (forcedWinIndices.length > 0) {
+                    const randPick = Math.floor(Math.random() * forcedWinIndices.length);
+                    return forcedWinIndices[randPick];
+                }
+            }
+
+            // 3. 方法C（スタートボタンの左右端25%クリック）
+            if (toggleTrickC.checked) {
+                if (clickZone === 'left') {
+                    return 0; // 一番上の項目
+                }
+                if (clickZone === 'right') {
+                    return count - 1; // 一番下の項目
+                }
+            }
+
+            // 4. 通常ランダム抽選（ただし方法AがONで末尾スペース2個の「絶対外す」項目がある場合はそれを除外）
+            let candidateIndices = items.map((_, idx) => idx);
+            if (toggleTrickA.checked) {
+                const safeCandidates = candidateIndices.filter(idx => !items[idx].forceLose);
+                if (safeCandidates.length > 0) {
+                    candidateIndices = safeCandidates;
+                }
+            }
+
+            const randomIdx = Math.floor(Math.random() * candidateIndices.length);
+            return candidateIndices[randomIdx];
+        }
+
+        /**
+         * ルーレットを回転させる（指定されたターゲットに自然な物理減速でピタリと止める）
+         */
+        function startSpin(clickZone = 'center') {
+            if (isSpinning || items.length === 0) return;
+
+            initAudio();
+            isSpinning = true;
+            spinButton.disabled = true;
+            itemsTextarea.disabled = true;
+
+            const count = items.length;
+            const sliceAngle = (Math.PI * 2) / count;
+
+            // 当選インデックスを決定（仕掛けまたはランダム）
+            const targetIndex = determineTargetIndex(clickZone);
+
+            // 自然に見せるため、スライスの中心から左右±36%の範囲でランダムな停止オフセットをつける
+            // （毎回ど真ん中に止まると怪しまれるため、時には境界線近くに止まる演出）
+            const randomInSliceOffset = (Math.random() - 0.5) * 0.72 * sliceAngle;
+
+            // targetIndex のスライスが 12時方向（Math.PI * 1.5）に来るための目標角度を計算
+            // スライス i の中心角は currentAngle + (i + 0.5) * sliceAngle
+            // これが Math.PI * 1.5 (mod 2π) になる角度を求める
+            const desiredModAngle = (Math.PI * 1.5 - (targetIndex + 0.5) * sliceAngle + randomInSliceOffset + Math.PI * 4) % (Math.PI * 2);
+            const currentModAngle = ((currentAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+
+            let angleDiff = desiredModAngle - currentModAngle;
+            if (angleDiff <= 0) {
+                angleDiff += Math.PI * 2;
+            }
+
+            // 7〜9回転分を追加して十分な回転感を作る
+            const extraRotations = (7 + Math.floor(Math.random() * 3)) * Math.PI * 2;
+            const totalRotation = extraRotations + angleDiff;
+
+            const startAngle = currentAngle;
+            const duration = 4800 + Math.random() * 700; // 4.8秒〜5.5秒
+            const startTime = performance.now();
+
+            let lastSliceIdx = getActiveSliceIndex(currentAngle);
+
+            // リアルな摩擦減速イージング（Quartic Out）
+            function easeOutQuart(t) {
+                return 1 - Math.pow(1 - t, 4);
+            }
+
+            function animateFrame(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const eased = easeOutQuart(progress);
+
+                currentAngle = startAngle + totalRotation * eased;
+                drawWheel();
+
+                const activeIdx = getActiveSliceIndex(currentAngle);
+                if (activeIdx !== lastSliceIdx) {
+                    lastSliceIdx = activeIdx;
+                    updatePointerIndicator();
+                    playTickSound();
+
+                    // 針がピンに弾かれるアニメーション
+                    wheelPointer.style.transform = 'translateX(-50%) rotate(-24deg)';
+                    setTimeout(() => {
+                        wheelPointer.style.transform = 'translateX(-50%) rotate(0deg)';
+                    }, 55);
+                }
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateFrame);
+                } else {
+                    // スピン完了
+                    isSpinning = false;
+                    spinButton.disabled = false;
+                    itemsTextarea.disabled = false;
+
+                    // キーボード仕掛けは1回使ったら自動でランダム(0)にリセットする（連続で同じになって怪しまれるのを防ぐ）
+                    if (keyboardTargetNumber !== 0) {
+                        setKeyboardTarget(0);
+                    }
+
+                    const finalWinnerIdx = getActiveSliceIndex(currentAngle);
+                    lastWinnerIndex = finalWinnerIdx;
+                    onSpinComplete(items[finalWinnerIdx]);
+                }
+            }
+
+            requestAnimationFrame(animateFrame);
+        }
+
+        /**
+         * スピン完了時の演出と履歴追加
+         */
+        function onSpinComplete(winnerItem) {
+            playWinSound();
+            launchConfetti();
+
+            // 履歴に追加
+            const timeStr = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            spinHistory.unshift({ text: winnerItem.displayText, time: timeStr });
+            renderHistory();
+
+            // モーダル表示
+            resultModalText.textContent = winnerItem.displayText;
+            resultModal.classList.remove('hidden');
+            resultModal.classList.add('flex');
+        }
+
+        /**
+         * 抽選履歴の描画
+         */
+        function renderHistory() {
+            if (spinHistory.length === 0) {
+                historyList.innerHTML = '<p class="text-slate-500 py-2 text-center">まだ抽選履歴はありません</p>';
+                return;
+            }
+            historyList.innerHTML = spinHistory.map((entry, idx) => `
+                <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-950/60 border border-slate-800/70">
+                    <div class="flex items-center gap-2 truncate">
+                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">#${spinHistory.length - idx}</span>
+                        <span class="font-semibold text-slate-200 truncate">${escapeHtml(entry.text)}</span>
+                    </div>
+                    <span class="text-[11px] text-slate-500 font-mono ml-2 shrink-0">${entry.time}</span>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        /**
+         * キーボード仕掛け（1〜9 / 0）の設定とステルス表示の更新
+         */
+        function setKeyboardTarget(num) {
+            keyboardTargetNumber = num;
+            // フッターの Ver 2.4.X の末尾の数字をさりげなく変える
+            stealthVersionDigit.textContent = String(num);
+            // 右下隅の1pxドットの不透明度を微調整
+            stealthCornerDot.style.opacity = num > 0 ? '0.45' : '0';
+            if (secretDirectSelect) {
+                secretDirectSelect.value = String(num <= items.length ? num : 0);
+            }
+            updateSecretStatusPreview();
+        }
+
+        /**
+         * シークレットメニュー内のセレクトボックスとステータス表示を更新
+         */
+        function updateSecretSelectOptions() {
+            const currentVal = secretDirectSelect.value;
+            secretDirectSelect.innerHTML = '<option value="0">指定なし（ランダム）</option>';
+            items.forEach((item, idx) => {
+                const num = idx + 1;
+                if (num <= 9) {
+                    const opt = document.createElement('option');
+                    opt.value = String(num);
+                    opt.textContent = `${num}番: ${item.displayText}`;
+                    secretDirectSelect.appendChild(opt);
+                }
+            });
+            if ( Number(currentVal) <= items.length ) {
+                secretDirectSelect.value = currentVal;
+            }
+        }
+
+        function updateSecretStatusPreview() {
+            if (toggleTrickB.checked && keyboardTargetNumber >= 1 && keyboardTargetNumber <= items.length) {
+                const target = items[keyboardTargetNumber - 1];
+                secretStatusPreview.textContent = `🎯 キーボード/直接ロック中：${keyboardTargetNumber}番「${target.displayText}」が100%当選`;
+                secretStatusPreview.className = 'text-sm font-bold text-amber-400';
+                return;
+            }
+
+            if (toggleTrickA.checked) {
+                const winItems = items.filter(i => i.forceWin).map(i => `「${i.displayText}」`);
+                const loseItems = items.filter(i => i.forceLose).map(i => `「${i.displayText}」`);
+                if (winItems.length > 0) {
+                    secretStatusPreview.textContent = `🎯 末尾スペース仕掛け有効：${winItems.join('・')} が当選予定`;
+                    secretStatusPreview.className = 'text-sm font-bold text-indigo-400';
+                    return;
+                }
+                if (loseItems.length > 0) {
+                    secretStatusPreview.textContent = `🛡️ 回避スペース有効：${loseItems.join('・')} 以外から抽選`;
+                    secretStatusPreview.className = 'text-sm font-bold text-teal-400';
+                    return;
+                }
+            }
+
+            secretStatusPreview.textContent = toggleTrickC.checked
+                ? '完全ランダム（ただしスタートボタンの左端/右端25%クリックで最初/最後を強制可能）'
+                : '完全ランダム（仕掛けなし）';
+            secretStatusPreview.className = 'text-sm font-bold text-emerald-400';
+        }
+
+        /**
+         * 紙吹雪（Confetti）アニメーション
+         */
+        const confettiCanvas = document.getElementById('confettiCanvas');
+        const confettiCtx = confettiCanvas.getContext('2d');
+        let confettiParticles = [];
+        let confettiAnimId = null;
+
+        function resizeConfettiCanvas() {
+            confettiCanvas.width = window.innerWidth;
+            confettiCanvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeConfettiCanvas);
+        resizeConfettiCanvas();
+
+        function launchConfetti() {
+            confettiParticles = [];
+            const colors = ['#6366F1', '#EC4899', '#10B981', '#F59E0B', '#38BDF8', '#A855F7'];
+            for (let i = 0; i < 90; i++) {
+                confettiParticles.push({
+                    x: window.innerWidth / 2 + (Math.random() - 0.5) * 180,
+                    y: window.innerHeight / 2 - 40,
+                    vx: (Math.random() - 0.5) * 16,
+                    vy: -Math.random() * 14 - 4,
+                    size: Math.random() * 8 + 5,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    rotation: Math.random() * 360,
+                    vRot: (Math.random() - 0.5) * 12,
+                    alpha: 1
+                });
+            }
+            if (confettiAnimId) cancelAnimationFrame(confettiAnimId);
+            animateConfetti();
+        }
+
+        function animateConfetti() {
+            confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+            let active = false;
+
+            for (const p of confettiParticles) {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.38; // 重力
+                p.vx *= 0.99;
+                p.rotation += p.vRot;
+                if (p.y > confettiCanvas.height - 80) {
+                    p.alpha -= 0.03;
+                }
+                if (p.alpha > 0) {
+                    active = true;
+                    confettiCtx.save();
+                    confettiCtx.globalAlpha = Math.max(0, p.alpha);
+                    confettiCtx.translate(p.x, p.y);
+                    confettiCtx.rotate((p.rotation * Math.PI) / 180);
+                    confettiCtx.fillStyle = p.color;
+                    confettiCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+                    confettiCtx.restore();
+                }
+            }
+
+            if (active) {
+                confettiAnimId = requestAnimationFrame(animateConfetti);
+            } else {
+                confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+            }
+        }
+
+        /**
+         * イベントリスナーの設定
+         */
+
+        // スタートボタンのクリック位置（左25% / 中央50% / 右25%）を判定してスピン開始
+        spinButton.addEventListener('click', (e) => {
+            const rect = spinButton.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const ratio = clickX / rect.width;
+
+            let zone = 'center';
+            // キーボードからのEnter押下時は clientX が 0 になることがあるためガード
+            if (e.clientX !== 0 && rect.width > 0) {
+                if (ratio < 0.25) {
+                    zone = 'left';
+                } else if (ratio > 0.75) {
+                    zone = 'right';
+                }
+            }
+            startSpin(zone);
+        });
+
+        // テキストエリアの変更時にリアルタイムでルーレット盤を更新
+        itemsTextarea.addEventListener('input', () => {
+            parseItemsFromTextarea();
+        });
+
+        // キーボードショートカット仕掛け（テキストエリア等に入力中でない時のみ 0〜9 キーを検知）
+        window.addEventListener('keydown', (e) => {
+            const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+            if (activeTag === 'textarea' || activeTag === 'input' || activeTag === 'select') {
+                return;
+            }
+            if (e.key >= '0' && e.key <= '9') {
+                const num = parseInt(e.key, 10);
+                setKeyboardTarget(num);
+            }
+        });
+
+        // タイトル「WEBルーレット」を素早く3回クリック（トリプルクリック）でシークレットメニュー表示
+        secretTitleTrigger.addEventListener('click', () => {
+            titleClickCount++;
+            if (titleClickTimer) clearTimeout(titleClickTimer);
+
+            if (titleClickCount >= 3) {
+                titleClickCount = 0;
+                updateSecretStatusPreview();
+                secretModal.classList.remove('hidden');
+                secretModal.classList.add('flex');
+            } else {
+                titleClickTimer = setTimeout(() => {
+                    titleClickCount = 0;
+                }, 600);
+            }
+        });
+
+        // シークレットモーダル内の操作
+        function closeSecretModal() {
+            secretModal.classList.add('hidden');
+            secretModal.classList.remove('flex');
+        }
+        closeSecretModalBtn.addEventListener('click', closeSecretModal);
+        closeSecretModalFooterBtn.addEventListener('click', closeSecretModal);
+        secretModal.addEventListener('click', (e) => {
+            if (e.target === secretModal) closeSecretModal();
+        });
+
+        secretDirectSelect.addEventListener('change', (e) => {
+            setKeyboardTarget(parseInt(e.target.value, 10));
+        });
+
+        [toggleTrickA, toggleTrickB, toggleTrickC].forEach(chk => {
+            chk.addEventListener('change', updateSecretStatusPreview);
+        });
+
+        // 結果モーダル操作
+        function closeResultModal() {
+            resultModal.classList.add('hidden');
+            resultModal.classList.remove('flex');
+        }
+        closeResultBtn.addEventListener('click', closeResultModal);
+        resultModal.addEventListener('click', (e) => {
+            if (e.target === resultModal) closeResultModal();
+        });
+
+        // 当選した項目をリストから除外して閉じるボタン
+        removeWinnerBtn.addEventListener('click', () => {
+            if (lastWinnerIndex >= 0 && items.length > 2) {
+                items.splice(lastWinnerIndex, 1);
+                itemsTextarea.value = items.map(item => item.rawText).join('\n');
+                parseItemsFromTextarea();
+            }
+            closeResultModal();
+        });
+
+        // シャッフルボタン（各行に仕込んだ末尾スペースもそのまま保持してシャッフル！）
+        shuffleItemsBtn.addEventListener('click', () => {
+            if (isSpinning || items.length <= 1) return;
+            const lines = items.map(item => item.rawText);
+            for (let i = lines.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [lines[i], lines[j]] = [lines[j], lines[i]];
+            }
+            itemsTextarea.value = lines.join('\n');
+            parseItemsFromTextarea();
+        });
+
+        // プリセットボタン
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (isSpinning) return;
+                const key = btn.getAttribute('data-preset');
+                if (PRESETS[key]) {
+                    itemsTextarea.value = PRESETS[key].join('\n');
+                    parseItemsFromTextarea();
+                }
+            });
+        });
+
+        // 履歴クリア
+        clearHistoryBtn.addEventListener('click', () => {
+            spinHistory = [];
+            renderHistory();
+        });
+
+        // 効果音ON/OFF切り替え
+        soundToggleBtn.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            if (soundEnabled) {
+                soundOnIcon.classList.remove('hidden');
+                soundOffIcon.classList.add('hidden');
+                soundLabel.textContent = '効果音 ON';
+                initAudio();
+            } else {
+                soundOnIcon.classList.add('hidden');
+                soundOffIcon.classList.remove('hidden');
+                soundLabel.textContent = '効果音 OFF';
+            }
+        });
+
+        // 初期データのセットアップと初回描画
+        window.onload = function () {
+            itemsTextarea.value = PRESETS.lunch.join('\n');
+            parseItemsFromTextarea();
+        };
+    </script>
+</body>
+</html>
